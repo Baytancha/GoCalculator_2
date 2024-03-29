@@ -4,8 +4,9 @@ import (
 	"bufio"
 	"fmt"
 	"os"
-	"strconv"
-	"strings"
+
+	//"strconv"
+	//"strings"
 	"unicode"
 )
 
@@ -75,19 +76,19 @@ func (ts *Token_stream) get() Token {
 			if reader.UnreadRune() != nil {
 				panic("unreadRune() failed")
 			}
-			var input string
+			var input float64
 			fmt.Println("NUMBER", input)
 			//input, err := reader.ReadString(' ') //вписываем вернувшийся на консоль символ в value
 			_, err := fmt.Fscan(reader, &input)
-			input = strings.TrimSpace(input)
+			//input = strings.TrimSpace(input)
 			if err != nil {
 				panic(err)
 			}
 			fmt.Println("NUMBER", input)
-			value, _ := strconv.ParseFloat(input, 64)
+			//value, _ := strconv.ParseFloat(input, 64)
 
-			fmt.Println("NUMBER", value)
-			return Token{kind: number, value: value}
+			//fmt.Println("NUMBER", value)
+			return Token{kind: number, value: input}
 
 		}
 	default:
@@ -264,24 +265,24 @@ func cleanup() {
 
 func main() {
 
-	for {
-		var ch rune
-		reader := bufio.NewReader(os.Stdin)
-		ch, _, _ = reader.ReadRune()
-		fmt.Println(string(ch))
+	// for {
+	// 	var ch rune
+	// 	reader := bufio.NewReader(os.Stdin)
+	// 	ch, _, _ = reader.ReadRune()
+	// 	fmt.Println(string(ch))
 
-		reader.UnreadRune()
+	// 	reader.UnreadRune()
 
-		var ch2 float64
-		fmt.Fscan(reader, &ch2)
-		ch2 = ch2 + 150
-		//ch2, _ = reader.ReadString(' ')
-		fmt.Println(ch2)
-		//ch2 = strings.TrimSpace(ch2)
-		//value, _ := strconv.ParseFloat(ch2, 64)
+	// 	var ch2 float64
+	// 	fmt.Fscan(reader, &ch2)
+	// 	ch2 = ch2 + 150
+	// 	//ch2, _ = reader.ReadString(' ')
+	// 	fmt.Println(ch2)
+	// 	//ch2 = strings.TrimSpace(ch2)
+	// 	//value, _ := strconv.ParseFloat(ch2, 64)
 
-		//fmt.Println(value)
-	}
+	// 	//fmt.Println(value)
+	// }
 
 	for {
 		fmt.Printf("%c", prompt)
