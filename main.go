@@ -32,6 +32,54 @@ type Token_stream struct {
 	full   bool
 }
 
+type Variable struct {
+	name  string
+	value float64
+	v     bool
+}
+type Symbol_table struct {
+	var_table []Variable
+}
+
+func (s *Symbol_table) get(str string) float64 {
+	for i := 0; i < len(s.var_table); i++ {
+		if s.var_table[i].name == str {
+			return s.var_table[i].value
+		}
+	}
+	panic("undefined variable")
+}
+
+func (s *Symbol_table) set(str string, value float64) {
+	for i := 0; i < len(s.var_table); i++ {
+		if s.var_table[i].name == str {
+			if !s.var_table[i].v {
+				panic("it's a constant")
+			}
+			s.var_table[i].value = value
+			return
+		}
+	}
+	panic("undefined variable")
+}
+
+func (s *Symbol_table) is_declared(str string) bool {
+	for i := 0; i < len(s.var_table); i++ {
+		if s.var_table[i].name == str {
+			return true
+		}
+	}
+	return false
+}
+
+func (s *Symbol_table) define(name string, value float64, v bool) float64 {
+	if s.is_declared(name) {
+		panic("variable already declared")
+	}
+	s.var_table = append(s.var_table, Variable{name, value, v})
+	return value
+}
+
 func (ts *Token_stream) putback(t Token) {
 	if ts.full {
 		panic("putback() into a full buffer")
@@ -40,6 +88,7 @@ func (ts *Token_stream) putback(t Token) {
 	ts.full = true
 }
 
+// глобальный буфер
 var reader = bufio.NewReader(os.Stdin)
 
 func (ts *Token_stream) get() Token {
@@ -48,50 +97,36 @@ func (ts *Token_stream) get() Token {
 		return ts.buffer
 	}
 
-	fmt.Println("TAKING INPUT ")
-
 	var ch rune
-	//reader := bufio.NewReader(os.Stdin)
+	//считывает в т.ч. пробелы
 	ch, _, _ = reader.ReadRune()
 
-	fmt.Printf("%q\n", ch)
-
-	if ch == ' ' {
+	//проскочить все пробелы вводимые пользователем
+	for ch == ' ' {
 		ch, _, _ = reader.ReadRune()
-	}
-
-	if ch == '\n' {
-		fmt.Println("END OF LINE")
 	}
 
 	switch ch {
 	case quit, print, '(', ')', '+', '-', '*', '/', '=':
 		{
-			fmt.Println("CASE 1 ")
 			return Token{kind: ch}
 		}
 	case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 		{
-			fmt.Println("CASE 2 ")
 			if reader.UnreadRune() != nil {
 				panic("unreadRune() failed")
 			}
 			var input float64
-			fmt.Println("NUMBER", input)
-			//input, err := reader.ReadString(' ') //вписываем вернувшийся на консоль символ в value
+			//с помощью Fscan считываем возвращенный символ и другие символы числа
 			_, err := fmt.Fscan(reader, &input)
-			//input = strings.TrimSpace(input)
 			if err != nil {
 				panic(err)
 			}
-			fmt.Println("NUMBER", input)
-			//value, _ := strconv.ParseFloat(input, 64)
-
-			//fmt.Println("NUMBER", value)
 			return Token{kind: number, value: input}
 
 		}
 	default:
+		//поскольку bufio.ReadRune() считывает пробелы, то их нужно обрабатывать
 		if ch == '\r' || ch == '\n' {
 			return Token{kind: print}
 		} else if unicode.IsLetter(ch) {
@@ -124,7 +159,6 @@ func (ts *Token_stream) get() Token {
 func (ts *Token_stream) ignore(c rune) {
 
 	var ch rune
-	//reader := bufio.NewReader(os.Stdin)
 	for {
 		ch, _, _ = reader.ReadRune()
 		if ch == c {
@@ -135,18 +169,13 @@ func (ts *Token_stream) ignore(c rune) {
 }
 
 var str Token_stream //глобальная переменная
+var tbl Symbol_table
 
 func primary() float64 {
-
 	t := str.get()
-	fmt.Println("PRIMARY: ", t)
-
 	switch t.kind {
 	case '(':
 		{
-
-			fmt.Println("PRIMARY PARENTHESES ", t)
-
 			f := expression()
 			t = str.get()
 			if t.kind != ')' {
@@ -155,17 +184,17 @@ func primary() float64 {
 			return f
 		}
 	case number:
-
-		fmt.Println("PRIMARY NUMBER ", t)
-
 		return t.value
 	case name:
 		{
 			next := str.get()
 			if next.kind == '=' {
 				d := expression()
+				tbl.set(t.name, d)
 				return d
-
+			} else {
+				str.putback(next)
+				return tbl.get(t.name)
 			}
 		}
 	case '-':
@@ -173,10 +202,8 @@ func primary() float64 {
 	case '+':
 		return +primary()
 	default:
-		fmt.Println("FALLTHRU IN PRIMARY ", t)
 		panic("primary expected")
 	}
-	panic("primary expected")
 }
 
 func term() float64 {
@@ -184,21 +211,15 @@ func term() float64 {
 	left := primary()
 	t := str.get()
 
-	fmt.Println("TERM: ", t)
-
 	for {
 		switch t.kind {
 		case '*':
 			{
-				fmt.Println("*: ", t)
-
 				left *= primary()
 				t = str.get()
 			}
 		case '/':
 			{
-				fmt.Println("///: ", t)
-
 				f := primary()
 				if f == 0.0 {
 					panic("divide by zero")
@@ -207,7 +228,6 @@ func term() float64 {
 				t = str.get()
 			}
 		default:
-			fmt.Println("FALLTHRU IN TERM ", t)
 			str.putback(t)
 			return left
 		}
@@ -219,44 +239,50 @@ func expression() float64 {
 	left := term()
 	t := str.get()
 
-	fmt.Println("EXPRESSION: ", t)
-
 	for {
 		switch t.kind {
 		case '+':
-
-			fmt.Println("+++ ", t)
-
 			left += term()
-			fmt.Println("Value ", left)
 			t = str.get()
 		case '-':
-
-			fmt.Println("---- ", t)
-
 			left -= term()
 			t = str.get()
 		default:
-
-			fmt.Println("FALLTHRU IN EXPRESSION ", t)
-
 			str.putback(t)
 			return left
 		}
 	}
 }
 
+func declaration(t Token) float64 {
+	t = str.get()
+
+	if t.kind != name {
+		panic("name expected")
+	}
+	var_name := t.name
+
+	t2 := str.get()
+	if t2.kind != '=' {
+		panic("'=' expected")
+	}
+	//переменная может быть результатом мат выражения
+	d := expression()
+	tbl.define(var_name, d, t.kind == let)
+	return d
+
+}
+
 func statement() float64 {
 
 	t := str.get()
 	switch t.kind {
-	case let:
-	case con:
+	case let, con:
+		return declaration(t)
 	default:
 		str.putback(t)
 		return expression()
 	}
-	panic("statement expected")
 }
 
 func cleanup() {
